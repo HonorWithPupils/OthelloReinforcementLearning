@@ -36,11 +36,14 @@ An Othello Environment for Reinforcement Learning Learning and Testing. Run Play
 
 ## TODO：
 
-1. PPO ✅
-2. GAE + Critic ✅
-3. Monte-Carlo Search ⌛
-4. SAC ⌛
-5. DQN ⌛
-6. DDQN ⌛
-7. TD3 ⌛
+1. More Algorithms:
+   1. PPO ✅
+   2. SAC ⌛
+   3. DQN ⌛
+   4. DDQN ⌛
+   5. TD3 ⌛
+
+2. More Tricks:
+   1. GAE + Critic ✅
+   2. Monte-Carlo Search ⌛
 
