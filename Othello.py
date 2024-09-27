@@ -159,7 +159,7 @@ class Envs(gym.Env):
 
         return A.detach()
 
-    def randomAction(self, *args) -> torch.Tensor:
+    def randomAction(self, *args, **kwargs) -> torch.Tensor:
         """Random action
 
         Returns:
@@ -169,7 +169,7 @@ class Envs(gym.Env):
         idx = torch.multinomial(valid.float(), 1).view(-1)
         return F.one_hot(idx, valid.shape[-1]).detach()
 
-    def manualAction(self, *args) -> torch.Tensor:
+    def manualAction(self, *args, **kwargs) -> torch.Tensor:
         """Manual action:
         The player manually enters the number of the next move in a playable position on the 1st board of the batch.
         The move on the rest of boards are random.
@@ -213,6 +213,7 @@ class Envs(gym.Env):
 
         return move
 
+    @torch.no_grad()
     def step(self, action: torch.Tensor, restart: bool = True) -> Tuple[
         Tuple[torch.Tensor, torch.Tensor],
         torch.Tensor,
@@ -309,6 +310,7 @@ class Envs(gym.Env):
             info,
         )
 
+    @torch.no_grad()
     def reset(self) -> Tuple[
         Tuple[torch.Tensor, torch.Tensor],
         torch.Tensor,
@@ -398,31 +400,41 @@ class Envs(gym.Env):
 
 
 class Actor(torch.nn.Module):
-    def __init__(self, n: int, bone: str) -> NoReturn:
+    def __init__(self, n: int, bone: str, **kwargs) -> NoReturn:
 
         super().__init__()
+
+        if not kwargs:
+            if bone == "ViT":
+                kwargs = {
+                    "img_size": n,
+                    "patch_size": 1,
+                    "depth": 10,
+                    "dim": 512,
+                    "mlp_dim": 1024,
+                    "heads": 16,
+                    "dim_head": 32,
+                    "channels": 1,
+                }
+            elif bone == "ResNet":
+                kwargs = {
+                    "dims": [1, 32, 64, 64, 32, 1],
+                    "kernel_size": 5,
+                }
 
         self.n = n
 
         if bone == "ViT":
-            self.block = ViTBlock(
-                img_size=n,
-                patch_size=1,
-                depth=4,
-                dim=256,
-                mlp_dim=256,
-                heads=4,
-                dim_head=64,
-                channels=1,
-            )
+            self.block = ViTBlock(img_size=n, **kwargs)
         elif bone == "ResNet":
-            self.block = ResNet([1, 32, 64, 64, 32, 1], 5)
+            self.block = ResNet(**kwargs)
 
         self.linear = torch.nn.Linear(n * n, 1)
 
     def forward(self, input: Tuple[torch.Tensor]) -> torch.Tensor:
 
         x, validMask = input
+        validMask = validMask.to(torch.bool)
 
         # input
         # b,1,n,n -> b,1,n,n
@@ -449,37 +461,49 @@ class Actor(torch.nn.Module):
         return x
 
 
-class Critic(nn.Module):
-    def __init__(self, n: int) -> NoReturn:
+class Critic(torch.nn.Module):
+    def __init__(self, n: int, bone: str, **kwargs) -> NoReturn:
 
         super().__init__()
 
+        if not kwargs:
+            if bone == "ViT":
+                kwargs = {
+                    "img_size": n,
+                    "patch_size": 1,
+                    "depth": 10,
+                    "dim": 512,
+                    "mlp_dim": 1024,
+                    "heads": 16,
+                    "dim_head": 32,
+                    "channels": 1,
+                }
+            elif bone == "ResNet":
+                kwargs = {
+                    "dims": [1, 32, 64, 64, 32, 1],
+                    "kernel_size": 5,
+                }
+
         self.n = n
 
-        self.vit = ViTBlock(
-            img_size=n,
-            patch_size=1,
-            depth=4,
-            dim=128,
-            mlp_dim=128,
-            heads=8,
-            dim_head=16,
-            channels=1,
-        )
+        if bone == "ViT":
+            self.block = ViTBlock(img_size=n, **kwargs)
+        elif bone == "ResNet":
+            self.block = ResNet(**kwargs)
 
         self.linear = torch.nn.Linear(n * n, 1)
 
     def forward(self, input: Tuple[torch.Tensor]) -> torch.Tensor:
 
-        x, _ = input
+        x, validMask = input
 
         # input
-        # b,1,n,n -> b,32,n,n
-        x = self.vit(x[:, None])
+        # b,1,n,n -> b,1,n,n
+        x = self.block(x[:, None])
 
-        # add pass
-        # b,1,n,n -> b,n*n+1
+        # calculate predicted reward
+        # b,1,n,n -> b,n*n -> b,
         x = x.view(x.size(0), -1)
-        x = self.linear(x)
+        x = self.linear(x).view(x.size(0))
 
         return x

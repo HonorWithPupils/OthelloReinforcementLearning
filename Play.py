@@ -8,7 +8,7 @@ if __name__ == "__main__":
     n = 8
 
     env = Othello.Envs(n, 1, if_render=True)
-    obs, reward, done, _, info = env.reset()
+    obs, reward, terminated, _, info = env.reset()
 
     actor = Othello.Actor(n, "ResNet")
     actor.load_state_dict(
@@ -29,7 +29,7 @@ if __name__ == "__main__":
         p = "Black" if player == 0 else "White"
         print(f"player: {p}")
 
-        obs, reward, done, _, info = env.step(agent(obs), restart=False)
+        obs, reward, terminated, _, info = env.step(agent(obs), restart=False)
 
         if player == 0:
             player = 1
@@ -38,7 +38,7 @@ if __name__ == "__main__":
 
         plt.pause(0.5)
 
-        finish = done[0].bool()
+        finish = terminated[0].bool()
 
     if info["board"].sum() > 0:
         print(f"result: Black win")
